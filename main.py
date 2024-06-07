@@ -22,6 +22,8 @@ for frame_id, img_file in enumerate(img_seq):
     viewer.update(slam_map)    
 
     cv2.imshow('image display', frame)
-    cv2.waitKey(500)
+    cv2.waitKey(5000)
+    if frame_id == 1:
+        break
 
 cv2.destroyAllWindows()

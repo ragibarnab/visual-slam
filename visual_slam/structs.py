@@ -1,8 +1,11 @@
 import numpy as np
+from collections import OrderedDict
 
 class MapPoint():
-    def __init__(self, pt3d) -> None:
+    def __init__(self, mpid, pt3d) -> None:
+        self.mpid = mpid
         self.pt3d = pt3d
+    
         
 
 class Frame():
@@ -11,31 +14,35 @@ class Frame():
         self.pose = pose
         self.kp = kp
         self.des = des
-        self.idx = []   # stores index of keypoints, descriptors of observed map points
-        self.map_pts = []   # stores pointers to observed map points
+        self.obs = {}   # maps map point id to index of keypoints, descriptors
 
-    def add_observation(self, map_pt, idx):
-        self.map_pts.append(map_pt)
-        self.idx.append(idx)
+    def add_observation(self, mpid, idx):
+        self.obs[mpid] = idx
+
 
 
 
 class SLAMMap():
     def __init__(self) -> None:
-        self.frames = []
-        self.key_frames = []
-        self.map_pts = set()
+        self.frames = OrderedDict()
+        self.map_pts = OrderedDict()
         self.fid = 0
+        self.mpid = 0
+
+    def get_last_frame(self):
+        return self.frames[next(reversed(self.frames))]
 
     def add_frame(self, pose, kp, des, kf=False):
         frame = Frame(self.fid, pose, kp, des)
-        self.frames.append(frame)
-        if kf:
-            self.key_frames.append(frame)
+        self.frames[self.fid] = frame
         self.fid += 1
+        return frame
 
-    def add_map_point(self, map_pt):
-        self.map_pts.add(map_pt)
+    def add_map_point(self, pt3d):
+        map_pt = MapPoint(self.mpid, pt3d)
+        self.map_pts[self.mpid] = map_pt
+        self.mpid += 1
+        return map_pt
 
     def get_visible_map_points_from_prev_frames(self, n=7):
         '''Return visible map points and their descriptors seen from previous N frames'''

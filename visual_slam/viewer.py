@@ -28,7 +28,7 @@ class Viewer():
         # Define Projection and initial ModelView matrix
         self.scam = pangolin.OpenGlRenderState(
             pangolin.ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.2, 200),
-            pangolin.ModelViewLookAt(-2, 2, -2, 0, 0, 0, pangolin.AxisDirection.AxisNegX))
+            pangolin.ModelViewLookAt(0.0, 2.0, 0.0, 0, 0, 0, pangolin.AxisDirection.AxisNegX))
         handler = pangolin.Handler3D(self.scam)
 
         # Create Interactive View in window
@@ -69,6 +69,7 @@ class Viewer():
             for f in frames:
                 gl.glLineWidth(0.1)
                 gl.glColor3f(0.0, 0.0, 1.0)
+                print(f.shape)
                 pose = cam_to_world @ f
                 pangolin.DrawCamera(pose, 0.25, 0.5, 0.5)
                     
@@ -77,12 +78,15 @@ class Viewer():
 
     def update(self, slam_map: SLAMMap):
 
+        if not self.q:
+            return
+
         points = []
-        for mp in slam_map.map_pts:
+        for mp in slam_map.map_pts.values():
             points.append(mp.pt3d)
 
         frames = []
-        for f in slam_map.frames:
+        for f in slam_map.frames.values():
             frames.append(f.pose)
 
         self.q.put((points, frames))

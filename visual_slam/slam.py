@@ -3,6 +3,7 @@ import cv2
 from .structs import SLAMMap, Frame, MapPoint
 from .utils import orb
 from .utils import match_features, estimate_pose, triangulate_points, project_points
+from .optimize import window_BA
 
 
 class VisualSLAM():
@@ -20,7 +21,7 @@ class VisualSLAM():
                 self.slam_map = SLAMMap()
                 self.slam_map.add_frame(np.eye(4), kp, des)
             else:
-                prev_frame = self.slam_map.frames[-1]
+                prev_frame = self.slam_map.get_last_frame()
 
                 kp1, des1 = prev_frame.kp, prev_frame.des
                 kp2, des2 = orb.detectAndCompute(frame, None)
@@ -32,15 +33,16 @@ class VisualSLAM():
                 pts3d, idx1, idx2 = triangulate_points(kp1, kp2, matches, rel_pose, mask, self.K)
 
                 # add current frame to map
-                self.slam_map.add_frame(rel_pose, kp2, des2)
-                curr_frame = self.slam_map.frames[-1]
+                curr_frame = self.slam_map.add_frame(rel_pose, kp2, des2)
 
                 # add observations and map points
                 for i, pt in enumerate(pts3d):
-                    map_pt = MapPoint(pt)
-                    self.slam_map.add_map_point(map_pt)
-                    prev_frame.add_observation(map_pt, idx1[i])
-                    curr_frame.add_observation(map_pt, idx2[i])
+                    map_pt = self.slam_map.add_map_point(pt)
+                    prev_frame.add_observation(map_pt.mpid, idx1[i])
+                    curr_frame.add_observation(map_pt.mpid, idx2[i])
+
+
+                window_BA(self.slam_map, 2, self.K)
 
                 self.initialized = True
         else:
@@ -89,15 +91,13 @@ class VisualSLAM():
             pts3d = (curr_pose @ pts3d_h.T).T[:, :3]
 
             # add current frame to map
-            self.slam_map.add_frame(curr_pose, kp2, des2)
-            curr_frame = self.slam_map.frames[-1]
+            curr_frame = self.slam_map.add_frame(curr_pose, kp2, des2)
             
             # add triangulated points as map points
             for i, pt in enumerate(pts3d):
-                map_pt = MapPoint(pt)
-                self.slam_map.add_map_point(map_pt)
-                prev_frame.add_observation(map_pt, idx1[i])
-                curr_frame.add_observation(map_pt, idx2[i])
+                map_pt = self.slam_map.add_map_point(pt)
+                prev_frame.add_observation(map_pt.mpid, idx1[i])
+                curr_frame.add_observation(map_pt.mpid, idx2[i])
 
             # add tracked map points as observations in current frame
             for i, map_pt in enumerate(tracked_map_pts):
