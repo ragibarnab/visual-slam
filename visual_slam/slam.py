@@ -1,8 +1,10 @@
 import numpy as np
 import cv2
 from .structs import SLAMMap, Frame, MapPoint
-from .utils import orb
-from .utils import match_features, estimate_pose, triangulate_points, project_points
+from .utils import Rt_to_pose, pose_to_Rt, project_points
+from .feature_extraction import match_features, extract_features
+from .pose_estimation import estimate_pose, estimate_pose_cv2
+from .triangulation import triangulate_points_lls, triangulate_points
 from .optimize import window_BA
 
 
@@ -17,20 +19,21 @@ class VisualSLAM():
 
         if not self.initialized:
             if self.slam_map is None:
-                kp, des = orb.detectAndCompute(frame, None)
+                kp, des = extract_features(frame)
                 self.slam_map = SLAMMap()
                 self.slam_map.add_frame(np.eye(4), kp, des)
             else:
                 prev_frame = self.slam_map.get_last_frame()
-
+                
                 kp1, des1 = prev_frame.kp, prev_frame.des
-                kp2, des2 = orb.detectAndCompute(frame, None)
+                kp2, des2 = extract_features(frame)
                 
                 matches = match_features(des1, des2)
 
-                rel_pose, mask = estimate_pose(kp1, kp2, matches, self.K)
+                R, t, mask = estimate_pose_cv2(kp1, kp2, matches, self.K)
+                rel_pose = Rt_to_pose(R, t)
 
-                pts3d, idx1, idx2 = triangulate_points(kp1, kp2, matches, rel_pose, mask, self.K)
+                pts3d, idx1, idx2 = triangulate_points(kp1, kp2, matches, np.eye(4), rel_pose, mask, self.K)
 
                 # add current frame to map
                 curr_frame = self.slam_map.add_frame(rel_pose, kp2, des2)
@@ -42,53 +45,64 @@ class VisualSLAM():
                     curr_frame.add_observation(map_pt.mpid, idx2[i])
 
 
-                window_BA(self.slam_map, 2, self.K)
+                #window_BA(self.slam_map, 2, self.K)
 
                 self.initialized = True
         else:
             # compute kp, des for current frame
-            prev_frame = self.slam_map.frames[-1]
+            prev_frame = self.slam_map.get_last_frame()
             kp1, des1 = prev_frame.kp, prev_frame.des
-            kp2, des2 = orb.detectAndCompute(frame, None)
+            kp2, des2 = extract_features(frame)
 
             matches = match_features(des1, des2)
-
-            rel_pose, mask = estimate_pose(kp1, kp2, matches, self.K)
-            curr_pose = prev_frame.pose @ rel_pose
-
-            # project map points to current frame to find correspondences
-            proj_map_pts, proj_des = self.slam_map.get_visible_map_points_from_prev_frames()
-            pts3d = np.float32([mp.pt3d for mp in proj_map_pts])
-            proj_pts = project_points(pts3d, curr_pose, self.K)
-
-            # match projected map points to current frame's features
-            proj_matches = match_features(proj_des, des2, threshold=50)
-            obs = np.float32([kp2[m.trainIdx].pt for m in proj_matches])
-            proj_pts = np.float32([proj_pts[m.queryIdx] for m in proj_matches])
-
-            # calculate pixel distance for observed points that are close to projected pts
-            dist = np.linalg.norm(proj_pts - obs, axis=1)
-            dist_mask = dist < 100
-
-            # list of which map points are tracked
-            tracked_map_pts = [proj_map_pts[m.queryIdx] for i, m in enumerate(proj_matches) if dist_mask[i]]
-
-            # get a set of feature indicies which are tracked in the current frame
-            tracked_pts_idx = [m.trainIdx for i, m in enumerate(proj_matches) if dist_mask[i]]
-            tracked_pts_idx_set = set(tracked_pts_idx)
-
-            # update mask to leave out points that are already tracked
-            for i, m in enumerate(matches):
-                if m.trainIdx in tracked_pts_idx_set:
-                    mask[i] = [0]
             
-            # triangulate matched points that does not have corresponding 3d map point using updated mask
-            pts3d, idx1, idx2 = triangulate_points(kp1, kp2, matches, rel_pose, mask, self.K)
+            # return cam2 to cam1 Rt
+            R, t, mask = estimate_pose_cv2(kp1, kp2, matches, self.K)
+            rel_pose = Rt_to_pose(R, t)
+            curr_pose = rel_pose @ prev_frame.pose
 
-            # transform triangulated pts to current frame
-            pts3d = pts3d.squeeze()
-            pts3d_h = np.hstack([pts3d, np.ones((pts3d.shape[0], 1))])
-            pts3d = (curr_pose @ pts3d_h.T).T[:, :3]
+            # # get "visible" map points and their descriptors
+            # visible = set()
+            # proj_map_pts = []
+            # proj_des = []
+            # for i, fid in enumerate(reversed(self.slam_map.frames)):
+            #     if i == 8: break
+            #     frame = self.slam_map.frames[fid]
+            #     for mpid, idx in frame.obs.items():
+            #         if mpid not in visible:
+            #             visible.add(mpid)
+            #             proj_map_pts.append(self.slam_map.map_pts[mpid])
+            #             proj_des.append(frame.des[idx])
+            # proj_des = np.uint8(proj_des)
+
+            # # match "visible" map points to current frame's features and project them
+            # proj_matches = match_features(proj_des, des2, threshold=50)
+            # obs = np.float32([kp2[m.trainIdx].pt for m in proj_matches])
+            # to_proj = np.float32([proj_map_pts[m.queryIdx].pt3d for m in proj_matches])
+            # proj_pts = project_points(to_proj, curr_pose, self.K)
+
+            # project_points(to_proj)
+
+            # # calculate pixel distance for observed feature points that are close to projected pts
+            # dist = np.linalg.norm(proj_pts - obs, axis=1)
+            # dist_mask = dist < 20
+
+            # # list of which map points were tracked
+            # tracked_map_pts = [proj_map_pts[m.queryIdx] for i, m in enumerate(proj_matches) if dist_mask[i]]
+            # print(len(tracked_map_pts))
+
+            # # get a set of feature indicies which are tracked in the current frame
+            # tracked_pts_idx = [m.trainIdx for i, m in enumerate(proj_matches) if dist_mask[i]]
+            # tracked_pts_idx_set = set(tracked_pts_idx)
+
+            # # update mask to leave out points that are already tracked
+            # for i, m in enumerate(matches):
+            #     if m.trainIdx in tracked_pts_idx_set:
+            #         mask[i] = [0]
+            
+            #triangulate matched points that does not have corresponding 3d map point using updated mask
+
+            pts3d, idx1, idx2 = triangulate_points(kp1, kp2, matches, prev_frame.pose, curr_pose, mask, self.K)
 
             # add current frame to map
             curr_frame = self.slam_map.add_frame(curr_pose, kp2, des2)
@@ -99,9 +113,12 @@ class VisualSLAM():
                 prev_frame.add_observation(map_pt.mpid, idx1[i])
                 curr_frame.add_observation(map_pt.mpid, idx2[i])
 
-            # add tracked map points as observations in current frame
-            for i, map_pt in enumerate(tracked_map_pts):
-                curr_frame.add_observation(map_pt, tracked_pts_idx[i])
+            # # add tracked map points as observations in current frame
+            # for i, map_pt in enumerate(tracked_map_pts):
+            #     curr_frame.add_observation(map_pt.mpid, tracked_pts_idx[i])
+            
+            # if prev_frame.fid % 8 == 0:
+            #window_BA(self.slam_map, 12, self.K, fix_pts=False)
         
         return self.slam_map
 

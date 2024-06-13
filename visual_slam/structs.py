@@ -5,8 +5,6 @@ class MapPoint():
     def __init__(self, mpid, pt3d) -> None:
         self.mpid = mpid
         self.pt3d = pt3d
-    
-        
 
 class Frame():
     def __init__(self, fid, pose, kp, des) -> None:
@@ -20,12 +18,10 @@ class Frame():
         self.obs[mpid] = idx
 
 
-
-
 class SLAMMap():
     def __init__(self) -> None:
-        self.frames = OrderedDict()
-        self.map_pts = OrderedDict()
+        self.frames = OrderedDict()     # maps frame id to frame object
+        self.map_pts = OrderedDict()    # maps map point id to map point object
         self.fid = 0
         self.mpid = 0
 
@@ -43,23 +39,6 @@ class SLAMMap():
         self.map_pts[self.mpid] = map_pt
         self.mpid += 1
         return map_pt
-
-    def get_visible_map_points_from_prev_frames(self, n=7):
-        '''Return visible map points and their descriptors seen from previous N frames'''
-        frames = self.frames[-n:]
-
-        found = set()
-        map_pts_ret = []
-        des_ret = []
-        for frame in frames:
-            for i, map_pt in enumerate(frame.map_pts):
-                if map_pt not in found:
-                    found.add(map_pt)
-                    map_pts_ret.append(map_pt)
-                    des_ret.append(frame.des[frame.idx[i]])
-
-        return map_pts_ret, np.uint8(des_ret)
-
 
     def serialize(self):
         pass

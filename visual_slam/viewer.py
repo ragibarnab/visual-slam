@@ -4,14 +4,16 @@ import numpy as np
 from .structs import SLAMMap
 from multiprocessing import Process, Queue
 
-cam_to_world = np.float64([
-    [0, -1, 0, 0],
-    [0, 0, -1, 0],
-    [-1, 0, 0, 0],
-    [0, 0, 0, 1]
-])
+# cam_to_world = np.float64([
+#     [0, -1, 0, 0],
+#     [0, 0, -1, 0],
+#     [-1, 0, 0, 0],
+#     [0, 0, 0, 1]
+# ])
+
 
 class Viewer():
+    ''' credits to george hotz'''
 
     def __init__(self):
         self.state = None
@@ -28,7 +30,7 @@ class Viewer():
         # Define Projection and initial ModelView matrix
         self.scam = pangolin.OpenGlRenderState(
             pangolin.ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.2, 200),
-            pangolin.ModelViewLookAt(0.0, 2.0, 0.0, 0, 0, 0, pangolin.AxisDirection.AxisNegX))
+            pangolin.ModelViewLookAt(0, 0, -2, 0, 0, 0, pangolin.AxisDirection.AxisNegY))
         handler = pangolin.Handler3D(self.scam)
 
         # Create Interactive View in window
@@ -51,7 +53,7 @@ class Viewer():
             self.state = q.get()
         
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-        gl.glClearColor(1.0, 1.0, 1.0, 1.0)
+        gl.glClearColor(0.0, 0.0, 0.0, 1.0)
         self.dcam.Activate(self.scam)
 
         if self.state is not None:
@@ -61,7 +63,7 @@ class Viewer():
             # Draw Point Cloud 
             if points:
                 points = np.array(points)
-                points = (cam_to_world[:3, :3] @ points.T).T
+                #points = (cam_to_world[:3, :3] @ points.T).T
                 #gl.glPointSize(5)
                 gl.glColor3f(1.0, 0.0, 0.0)
                 pangolin.DrawPoints(points)
@@ -69,8 +71,8 @@ class Viewer():
             for f in frames:
                 gl.glLineWidth(0.1)
                 gl.glColor3f(0.0, 0.0, 1.0)
-                print(f.shape)
-                pose = cam_to_world @ f
+                pose =  np.linalg.inv(f)
+                #pose = f
                 pangolin.DrawCamera(pose, 0.25, 0.5, 0.5)
                     
         pangolin.FinishFrame()
