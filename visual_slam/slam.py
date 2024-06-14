@@ -33,7 +33,7 @@ class VisualSLAM():
                 R, t, mask = estimate_pose_cv2(kp1, kp2, matches, self.K)
                 rel_pose = Rt_to_pose(R, t)
 
-                pts3d, idx1, idx2 = triangulate_points(kp1, kp2, matches, np.eye(4), rel_pose, mask, self.K)
+                pts3d, idx1, idx2 = triangulate_points(kp1, kp2, matches, prev_frame.pose, rel_pose, mask, self.K)
 
                 # add current frame to map
                 curr_frame = self.slam_map.add_frame(rel_pose, kp2, des2)
@@ -116,9 +116,12 @@ class VisualSLAM():
             # # add tracked map points as observations in current frame
             # for i, map_pt in enumerate(tracked_map_pts):
             #     curr_frame.add_observation(map_pt.mpid, tracked_pts_idx[i])
-            
+
+            # optimize pose
+            #window_BA(self.slam_map, 1000, self.K, fix_pts=True)
+
             # if prev_frame.fid % 8 == 0:
-            #window_BA(self.slam_map, 12, self.K, fix_pts=False)
+            #     window_BA(self.slam_map, 12, self.K, fix_pts=False)
         
         return self.slam_map
 

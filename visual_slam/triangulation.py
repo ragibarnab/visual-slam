@@ -17,7 +17,7 @@ def triangulate_points(kp1, kp2, matches, pose1, pose2, mask, K):
     P1 = K @ pose1[:3]
     P2 = K @ pose2[:3]
    
-    pts3d_h = triangulate(P1, P2, pts1_h[:2].T, pts2_h[:2].T)
+    pts3d_h = linear_triangulation(P1, P2, pts1_h[:2].T, pts2_h[:2].T)
     
     pts3d = cv2.convertPointsFromHomogeneous(pts3d_h).squeeze()
 
@@ -68,9 +68,8 @@ def triangulate_points_lls(kp1, kp2, matches, pose1, pose2, mask, K):
 
 
 # chatgpt ftw
-
-def linear_triangulation(P1, P2, point1, point2):
-    ''' Function to triangulate a point '''
+def linear_triangulation_single(P1, P2, point1, point2):
+    ''' Function to triangulate a single point '''
     A = np.zeros((4, 4))
     A[0] = point1[0] * P1[2] - P1[0]
     A[1] = point1[1] * P1[2] - P1[1]
@@ -82,7 +81,8 @@ def linear_triangulation(P1, P2, point1, point2):
     return X[:3] / X[3]
 
 
-def triangulate(pose1, pose2, pts1, pts2):
+def linear_triangulation(pose1, pose2, pts1, pts2):
+  ''' Function to triangulate multiple points '''
   ret = np.zeros((pts1.shape[0], 4))
   for i, p in enumerate(zip(pts1, pts2)):
     A = np.zeros((4,4))
@@ -143,7 +143,7 @@ def iterative_linear_triangulation(P1, P2, pts1, pts2):
         x2 = pts2[i]
         
         # Initial guess using DLT
-        X_initial = linear_triangulation(P1, P2, x1, x2)
+        X_initial = linear_triangulation_single(P1, P2, x1, x2)
         
         # Refine using least squares
         result = least_squares(

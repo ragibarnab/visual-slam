@@ -24,7 +24,7 @@ class Viewer():
 
 
     def init_viewer(self):
-        pangolin.CreateWindowAndBind('Main', 640, 480)
+        pangolin.CreateWindowAndBind('Main', 1241, 376)
         gl.glEnable(gl.GL_DEPTH_TEST)
 
         # Define Projection and initial ModelView matrix
@@ -64,14 +64,14 @@ class Viewer():
             if points:
                 points = np.array(points)
                 #points = (cam_to_world[:3, :3] @ points.T).T
-                #gl.glPointSize(5)
+                gl.glPointSize(1.0)
                 gl.glColor3f(1.0, 0.0, 0.0)
                 pangolin.DrawPoints(points)
 
             for f in frames:
                 gl.glLineWidth(0.1)
                 gl.glColor3f(0.0, 0.0, 1.0)
-                pose =  np.linalg.inv(f)
+                pose = np.linalg.inv(f)
                 #pose = f
                 pangolin.DrawCamera(pose, 0.25, 0.5, 0.5)
                     

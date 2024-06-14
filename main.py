@@ -24,8 +24,8 @@ for frame_id, img_file in enumerate(img_seq):
     frame = cv2.drawKeypoints(frame, slam_map.get_last_frame().kp, None, color=(0,255,0), flags=0)
 
     cv2.imshow('image display', frame)
-    cv2.waitKey(1)
-    if frame_id == 200:
+    cv2.waitKey(100)
+    if frame_id == 150:
         #print(K[0,0], (K[0, 2], K[1, 2]))
         window_BA(slam_map, 1000, K)
         viewer.update(slam_map)
